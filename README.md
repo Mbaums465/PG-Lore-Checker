@@ -20,7 +20,11 @@ The script tracks four categories of Lore XP sources from the wiki:
   - Search by source name
   - Filter by category (World Interactions, Favors/Quests, Hang Outs, Recipes)
   - Filter by completion status (Both, User Only, Wiki Only)
-- **Location Information** - Displays where to find world interaction items
+- **Location Information** - Displays NPC or zone location for finding sources
+- **Hint Display** - View hints/descriptions for each source:
+  - Up to 150 characters shown in the list
+  - Click a row to see a tooltip preview
+  - Double-click any row to see the full hint in a dialog box
 
 ## How to Use
 
@@ -52,9 +56,14 @@ The main list shows all Lore XP sources with these columns:
   - **Both** - You have it AND it's on the wiki (completed)
   - **User Only** - In your report but not found on wiki (possible formatting difference)
   - **Wiki Only** - On the wiki but not in your report (not yet obtained)
-- **Location** - For world interactions, shows where to find the item
+- **Location** - Shows NPC name or zone where the source is found
+- **Hint** - Description or hint text (up to 150 chars displayed, double-click for full text)
 
-### Step 4: Filter and Search
+### Step 4: View Hints and Details
+- **Click** any row to see a tooltip preview of the hint
+- **Double-click** any row to open a dialog with the full hint text
+- Hints provide context about where to find items, who gives quests, or what recipes do
+### Step 5: Filter and Search
 - **Search Box** - Type any text to filter by name
 - **Source Filter** - Show only completed items, missing items, or all
 - **Category Filter** - Focus on a specific type of Lore XP source
@@ -114,6 +123,14 @@ Apply Bow Augment
 - Windows operating system
 - Project Gorgon game installed
 
+### Recent Improvements
+- **Numeric Filtering** - Automatically filters out numeric-only entries (like "100", "200", "50") from the Lore XP column that were incorrectly parsed as sources
+- **Enhanced Hint Display** - Hints now show up to 150 characters in the list view, with full text accessible via double-click or tooltip
+- **Proper Table Parsing** - Correctly handles different table structures:
+  - World Interactions, Favors/Quests, Hang Outs: Source, Lore XP, NPC/Zone, Hints
+  - Recipes: Level, Name, First-Time XP, XP, Ingredients, Results, Description, Source
+- **Better Hangout Matching** - Properly combines NPC name with description (e.g., "Blanche: Search for antique Human artifacts")
+
 ### Data Accuracy
 - The script scrapes live data from the wiki each time you load a file
 - If wiki data changes, your next analysis will reflect those updates
@@ -128,9 +145,12 @@ Apply Bow Augment
 This script is based on the Death Report Analyzer but adapted for Lore XP tracking:
 - Tracks 4 categories instead of just one death table
 - Includes progress statistics by category
-- Shows location information for world items
+- Shows location information (NPC/zone) for all sources
+- Displays hints with interactive features (click for tooltip, double-click for full dialog)
 - Uses different parsing logic for the Lore wiki page structure
+- Filters out numeric-only entries from XP columns
 - Category-based filtering instead of just source filtering
+- Wider window (1000px) to accommodate hint column
 
 ## Credits
 - Based on the Project Gorgon Death Report Analyzer
@@ -138,4 +158,5 @@ This script is based on the Death Report Analyzer but adapted for Lore XP tracki
 - Created for the Project Gorgon community
 
 ## Version History
+- v1.1 - Enhanced hint display with tooltips and full text dialog, filtered numeric-only entries, improved table parsing
 - v1.0 - Initial release with four category tracking
