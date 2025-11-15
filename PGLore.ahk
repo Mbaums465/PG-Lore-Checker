@@ -56,7 +56,7 @@ CreateMainGui() {
     ; Results Section
     MainGui.Add("GroupBox", "x20 y370 w960 h310", "Lore XP Sources")
     
-    ; ListView with columns - no Owner drawn for multiline support
+    ; ListView with columns
     LV := MainGui.Add("ListView", "x30 y395 w940 h270 vLoreList Grid", ["Source Name", "Category", "Found In", "Location", "Hint"])
     LV.ModifyCol(1, 280)
     LV.ModifyCol(2, 110)
@@ -83,10 +83,12 @@ ShowHintTooltip(*) {
     
     if (RowNumber > 0 && RowNumber <= FilteredData.Length) {
         hint := FilteredData[RowNumber].FullHint
-        if (hint != "")
+        if (hint != "") {
             ToolTip(hint)
-        else
+            SetTimer(() => ToolTip(), -10000)  ; Clear tooltip after 10 seconds
+        } else {
             ToolTip()
+        }
     }
 }
 
@@ -188,8 +190,14 @@ ParseUserFile(FilePath) {
             continue
         
         ; Detect section headers
-        if (InStr(Line, "Sources of Lore XP:"))
+        if (InStr(Line, "Sources of Lore XP:")) {
             InSection := true
+            continue
+        }
+        else if (InStr(Line, "Interacting With The World:")) {
+            CurrentCategory := "World Interactions"
+            continue
+        }
         else if (InStr(Line, "Favors and Quests:")) {
             CurrentCategory := "Favors/Quests"
             continue
@@ -207,8 +215,8 @@ ParseUserFile(FilePath) {
             break
         }
         
-        ; Parse items (they don't have colons at the end typically)
-        if (CurrentCategory != "" && Line != "" && !InStr(Line, ":") || (CurrentCategory = "Hang Outs" && InStr(Line, ":"))) {
+        ; Parse items
+        if (CurrentCategory != "" && Line != "") {
             ; Skip if line ends with colon (it's a section header)
             if (SubStr(Line, -1) = ":")
                 continue
@@ -415,6 +423,13 @@ ParseHangOuts(html, Items) {
     if (!tableStart)
         return
     
+    ; Skip the "Hang Out:" text in recipes section
+    if (InStr(SubStr(html, tableStart - 50, 100), "Recipe"))
+        tableStart := InStr(html, "Hang Outs", , tableStart + 10)
+    
+    if (!tableStart)
+        return
+    
     tableStart := InStr(html, "<table", , tableStart)
     if (!tableStart)
         return
@@ -468,7 +483,7 @@ ParseHangOuts(html, Items) {
             cellPos := tdEnd + 5
         }
         
-        ; Structure: Source, Lore XP, NPC, Hints
+        ; FIXED: Structure is Description (col 1), Lore XP (col 2), NPC (col 3), Hints (col 4)
         if (cells.Length >= 3) {
             hangoutDesc := CleanHTML(cells[1])
             npc := CleanHTML(cells[3])
@@ -482,10 +497,14 @@ ParseHangOuts(html, Items) {
                 }
             }
             
-            ; Combine NPC with description
-            fullName := npc . ": " . hangoutDesc
+; Combine NPC with description in the format user file uses
+            ; Check if description already starts with "NPC: " to avoid duplication
+            if (InStr(hangoutDesc, npc . ": ") = 1)
+                fullName := hangoutDesc
+            else
+                fullName := npc . ": " . hangoutDesc
             
-            if (hangoutDesc != "")
+            if (hangoutDesc != "" && npc != "")
                 Items[fullName] := {Category: "Hang Outs", Location: npc, Hint: hint}
         }
         
@@ -494,14 +513,28 @@ ParseHangOuts(html, Items) {
 }
 
 ParseRecipes(html, Items) {
-    ; Find recipe list - look for recipe table in the Complete Recipe List section
-    recipeStart := InStr(html, "Lore Complete Recipe List")
-    if (!recipeStart)
+    ; Find the simple "Recipes" table (not the "Lore Complete Recipe List")
+    ; This table appears right after Hang Outs and has structure: Recipes, Lore XP, Hints
+    
+    ; Find "Recipes" heading that comes after "Hang Outs"
+    hangOutPos := InStr(html, "Hang Outs")
+    if (!hangOutPos)
+        hangOutPos := 1
+    
+    ; Find "Recipes" after hang outs
+    recipePos := InStr(html, ">Recipes<", , hangOutPos)
+    if (!recipePos)
         return
     
-    ; Find the next table
-    tableStart := InStr(html, "<table", , recipeStart)
+    ; Find the table tag after this heading
+    tableStart := InStr(html, "<table", , recipePos)
     if (!tableStart)
+        return
+    
+    ; Make sure we're not getting the stat bonuses table or level up rewards table
+    ; The recipes table should be before "Lore Stat Bonuses"
+    statBonusPos := InStr(html, "Lore Stat Bonuses")
+    if (statBonusPos > 0 && tableStart > statBonusPos)
         return
     
     tableEnd := InStr(html, "</table>", , tableStart)
@@ -553,18 +586,21 @@ ParseRecipes(html, Items) {
             cellPos := tdEnd + 5
         }
         
-        ; Structure: Level, Name, First-Time XP, XP, Ingredients, Results, Description, Source
-        ; We want column 2 (Name), column 7 (Description as hint)
+        ; Structure: Recipes (col 1), Lore XP (col 2), Hints (col 3)
         if (cells.Length >= 2) {
-            recipeName := CleanHTML(cells[2])
+            recipeName := CleanHTML(cells[1])
             hint := ""
             
-            ; Get description from column 7 if available
-            if (cells.Length >= 7) {
-                hint := CleanHTML(cells[7])
+            ; Get hint from column 3 if available
+            if (cells.Length >= 3) {
+                if (RegExMatch(cells[3], 'title="([^"]+)"', &match)) {
+                    hint := match[1]
+                    hint := DecodeHTML(hint)
+                }
             }
             
-            if (recipeName != "")
+            ; Skip if recipe name is empty or just a number
+            if (recipeName != "" && !RegExMatch(recipeName, "^\d+$"))
                 Items[recipeName] := {Category: "Recipes", Location: "", Hint: hint}
         }
         
@@ -573,10 +609,25 @@ ParseRecipes(html, Items) {
 }
 
 CleanHTML(str) {
-    ; Remove HTML tags
+    ; First, extract text from links before removing all tags
+    ; This handles <a href="...">text</a> patterns
+    loop {
+        if (RegExMatch(str, "<a[^>]*>([^<]+)</a>", &match)) {
+            str := StrReplace(str, match[0], match[1])
+        } else {
+            break
+        }
+    }
+    
+    ; Remove all remaining HTML tags
     cleaned := RegExReplace(str, "<[^>]+>", "")
+    
     ; Decode common HTML entities
     cleaned := DecodeHTML(cleaned)
+    
+    ; Clean up whitespace
+    cleaned := RegExReplace(cleaned, "\s+", " ")
+    
     return Trim(cleaned)
 }
 
